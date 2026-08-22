@@ -1,0 +1,36 @@
+{% extends 'base.html' %}{% block title %}Firebase Setup • AttendEase{% endblock %}
+{% block content %}
+<div class="hero-row"><div>
+  <span class="eyebrow" data-i18n="firebase_setup_eyebrow">FIRST-TIME FIREBASE SETUP</span>
+  <h1 data-i18n="firebase_setup_title">Connect your Realtime Database.</h1>
+  <p class="muted" data-i18n="firebase_setup_desc">Teachers, class rosters, one-time enrolled face templates, sessions and attendance are stored in Firebase Realtime Database. Firebase Storage is not required for this version.</p>
+</div></div>
+<div class="grid-2">
+<section class="card">
+  <h2 data-i18n="only_two">You only need 2 things</h2>
+  <div class="details"><div><span>1</span><b data-i18n="database_url">Realtime Database URL</b></div><div><span>2</span><b data-i18n="service_json">Service-account JSON</b></div></div>
+  <p class="tiny" data-i18n="service_note">Keep the service-account JSON private. Do not commit it to GitHub. Student face templates and attendance are stored in your Firebase database.</p>
+</section>
+<section class="card">
+  <h2 data-i18n="connect_firebase">Connect Firebase</h2>
+  <form method="post" enctype="multipart/form-data" class="form-stack">
+    <label><span data-i18n="database_url">Realtime Database URL</span><input name="database_url" required placeholder="https://your-project-default-rtdb.asia-southeast1.firebasedatabase.app"></label>
+    <label><span data-i18n="service_json">Service-account JSON</span><input type="file" name="service_account" accept="application/json,.json" required></label>
+    <button class="btn primary" data-i18n="save_connect">Save & connect Firebase</button>
+  </form>
+</section>
+</div>
+<section class="card space-top"><h2 data-i18n="firebase_org">Firebase organization</h2><pre class="code">attendease/
+  teachers/
+    &lt;teacher_id&gt;/
+      profile/
+      classes/
+        &lt;class_id&gt;/
+          meta/
+          students/
+          face_templates/
+            &lt;student_id&gt;/
+              sample_01 ... sample_20
+          sessions/
+          attendance/</pre><p class="muted" data-i18n="firebase_org_desc">Each teacher and class is logically separated inside the same Firebase project. A student enrolls once; future attendance only verifies the stored face templates.</p></section>
+{% endblock %}

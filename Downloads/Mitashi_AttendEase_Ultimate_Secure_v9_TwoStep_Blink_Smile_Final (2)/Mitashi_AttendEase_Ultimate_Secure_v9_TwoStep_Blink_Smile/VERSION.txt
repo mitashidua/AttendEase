@@ -1,0 +1,7 @@
+AttendEase SECURE v9
+
+- exactly 2 liveness steps total
+- 1 blink prompt + 1 smile prompt
+- order randomized for every attempt
+- server reveals only one action at a time
+- face recognition runs after both steps pass

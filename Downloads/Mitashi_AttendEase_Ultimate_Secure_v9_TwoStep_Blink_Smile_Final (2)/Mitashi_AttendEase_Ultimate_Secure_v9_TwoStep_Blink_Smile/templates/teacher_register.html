@@ -1,0 +1,7 @@
+{% extends 'base.html' %}{% block title %}Create Teacher • AttendEase{% endblock %}
+{% block content %}
+<div class="auth-shell">
+  <section class="auth-copy"><span class="eyebrow" data-i18n="register_eyebrow">MULTI-TEACHER FIREBASE DATABASE</span><h1 data-i18n="register_title">Every teacher gets a separate Firebase class space.</h1><p data-i18n="register_desc">Your classes, student rosters, face templates and attendance remain separated from other teachers.</p></section>
+  <section class="card auth-card"><h2 data-i18n="create_teacher_account">Create teacher account</h2><form method="post" class="form-stack"><label><span data-i18n="name">Name</span><input name="name" required></label><label><span data-i18n="email">Email</span><input type="email" name="email" required></label><label><span data-i18n="password">Password</span><input type="password" name="password" minlength="6" required></label><button class="btn primary" data-i18n="create_account">Create account</button></form><a class="btn ghost fullbtn" href="{{ url_for('login') }}" data-i18n="back_login">Back to login</a></section>
+</div>
+{% endblock %}

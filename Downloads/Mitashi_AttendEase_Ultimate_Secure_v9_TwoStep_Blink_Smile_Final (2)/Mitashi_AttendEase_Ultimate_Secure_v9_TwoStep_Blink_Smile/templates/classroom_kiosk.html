@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Classroom Kiosk • {{ clazz.name }}</title>
+  <script>document.documentElement.dataset.theme=localStorage.getItem('attendease_theme')||'light';</script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css', v='secure-v9-two-step') }}">
+  <script src="{{ url_for('static', filename='ui.js', v='secure-v9-two-step') }}" defer></script>
+</head>
+<body class="kiosk-body">
+<div class="kiosk-shell">
+  <header class="kiosk-header">
+    <div>
+      <span class="eyebrow light" data-i18n="attendance_active">ATTENDANCE ACTIVE • CLASSROOM DEVICE</span>
+      <h1>{{ clazz.name }}</h1>
+      <p>{% if clazz.section %}{{ clazz.section }} • {% endif %}<span data-i18n="stand_one_at_time">Stand in front of the camera one student at a time.</span></p>
+    </div>
+    <div class="kiosk-head-actions">
+      <div class="ui-controls kiosk-ui-controls">
+        <select id="languageSelect" class="ui-select" aria-label="Language">
+          <option value="en">English</option><option value="hi">हिंदी</option><option value="mr">मराठी</option><option value="bn">বাংলা</option>
+          <option value="ta">தமிழ்</option><option value="te">తెలుగు</option><option value="pa">ਪੰਜਾਬੀ</option><option value="gu">ગુજરાતી</option>
+        </select>
+        <button id="themeToggle" class="ui-toggle" type="button">☾ Dark mode</button>
+      </div>
+      <div class="kiosk-count"><b id="presentCount">{{ records|length }}</b><span data-i18n="present">Present</span></div>
+    </div>
+  </header>
+
+  <main class="kiosk-grid">
+    <section class="kiosk-camera">
+      <video id="video" autoplay playsinline muted></video><canvas id="canvas" hidden></canvas>
+      <div class="face-guide"><div></div><span data-i18n="center_face">Center one face here</span></div>
+      <div id="challengeOverlay" class="challenge-overlay hidden">
+        <div class="challenge-step" id="challengeStep">Challenge 1/2</div>
+        <div class="challenge-icon" id="challengeIcon">●</div>
+        <div class="challenge-action" id="challengeAction">Center your face</div>
+        <div class="challenge-hint" id="challengeHint">Follow the instruction</div>
+        <div class="challenge-progress" id="challengeProgress"></div>
+      </div>
+    </section>
+
+    <section class="kiosk-panel">
+      <div class="security-badge"><span>🛡</span><div><b data-i18n="random_challenge_liveness">Random Challenge Liveness</b><small data-i18n="challenge_intro">Follow the random actions in order. The sequence changes for every attempt.</small></div></div>
+      <div id="statusCard" class="kiosk-status ready"><span class="status-icon">●</span><div><b id="statusTitle" data-i18n="ready_next">Ready for next student</b><p id="statusText" data-i18n="look_press">Look at the camera, then start secure verification.</p></div></div>
+      <button id="verifyBtn" class="btn primary kiosk-verify" onclick="verifyFace()" data-i18n="secure_verify">Start Secure Verification</button>
+      <p class="kiosk-note" data-i18n="kiosk_note">Random liveness challenge • no student login • no mobile phone • only enrolled faces from this class are accepted.</p>
+      <div class="recent-box"><h3 data-i18n="recently_marked">Recently marked</h3><div id="recentList">{% for r in records[:6] %}<div class="recent-item"><b>{{ r.student_name }}</b><span>{{ r.student_id }}</span></div>{% else %}<div class="muted" data-i18n="no_attendance">No attendance yet.</div>{% endfor %}</div></div>
+      <a class="kiosk-exit" href="{{ url_for('teacher_session', session_id=attendance_session.session_id) }}" data-i18n="teacher_controls">Teacher controls</a>
+    </section>
+  </main>
+</div>
+<script>
+const sid={{ attendance_session.session_id|tojson }};
+const video=document.getElementById('video'), canvas=document.getElementById('canvas'), btn=document.getElementById('verifyBtn');
+let stream=null,busy=false;
+const icons={blink:'◉',smile:'☺'};
+const speechLang={en:'en-IN',hi:'hi-IN',mr:'mr-IN',bn:'bn-IN',ta:'ta-IN',te:'te-IN',pa:'pa-IN',gu:'gu-IN'};
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function tx(k){return window.t?window.t(k):k;}
+function setStatus(kind,title,text){const c=document.getElementById('statusCard');c.className='kiosk-status '+kind;document.getElementById('statusTitle').textContent=title;document.getElementById('statusText').textContent=text;}
+function speak(text){try{if(!('speechSynthesis' in window))return;window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=speechLang[(window.AttendEaseUI&&AttendEaseUI.lang())||'en']||'en-IN';u.rate=.92;window.speechSynthesis.speak(u);}catch(e){}}
+async function startCamera(){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:960},height:{ideal:720}},audio:false});video.srcObject=stream;await sleep(900);}catch(e){setStatus('bad',tx('camera_unavailable'),e.message);btn.disabled=true;}}
+function shot(){canvas.width=video.videoWidth||640;canvas.height=video.videoHeight||480;canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',0.86);}
+async function captureFrames(n=10,gap=135){const frames=[];for(let i=0;i<n;i++){frames.push(shot());await sleep(gap);}return frames;}
+async function postJSON(url,body={}){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});let d={};try{d=await r.json();}catch(e){}if(!r.ok&&!d.ok)throw new Error(d.message||`Request failed (${r.status})`);return d;}
+function ensureProgress(total){const p=document.getElementById('challengeProgress');if(p.children.length!==total){p.innerHTML='';for(let i=0;i<total;i++)p.appendChild(document.createElement('i'));}}
+function showChallenge(action,index,total,hintKey){ensureProgress(total);const overlay=document.getElementById('challengeOverlay');overlay.classList.remove('hidden');document.getElementById('challengeStep').textContent=`${tx('challenge_step')} ${index+1}/${total}`;document.getElementById('challengeIcon').textContent=icons[action]||'●';document.getElementById('challengeAction').textContent=tx(action);document.getElementById('challengeHint').textContent=tx(hintKey||`${action}_hint`);document.querySelectorAll('#challengeProgress i').forEach((x,i)=>{x.className=i<index?'done':i===index?'active':'';});}
+function showBaseline(){const overlay=document.getElementById('challengeOverlay');overlay.classList.remove('hidden');document.getElementById('challengeStep').textContent=tx('baseline');document.getElementById('challengeIcon').textContent='◎';document.getElementById('challengeAction').textContent=tx('center_neutral');document.getElementById('challengeHint').textContent=tx('challenge_intro');document.querySelectorAll('#challengeProgress i').forEach(x=>x.className='');}
+function hideChallenge(){document.getElementById('challengeOverlay').classList.add('hidden');}
+async function runLiveness(){
+  setStatus('working',tx('preparing_liveness'),tx('center_neutral'));
+  const c=await postJSON(`/api/kiosk/${sid}/liveness/challenge`);
+  const challengeId=c.challenge_id,total=Number(c.total_steps||2);
+  let action=c.first_action;
+  ensureProgress(total);
+  showBaseline();speak(tx('center_neutral'));await sleep(950);
+  const baseFrames=await captureFrames(7,125);
+  await postJSON(`/api/kiosk/${sid}/liveness/baseline`,{challenge_id:challengeId,frames:baseFrames});
+  for(let i=0;i<total;i++){
+    let passed=false,lastMessage='',nextAction=null;
+    for(let attempt=0;attempt<3&&!passed;attempt++){
+      showChallenge(action,i,total,`${action}_hint`);
+      const instruction=tx(action)+'. '+tx(`${action}_hint`);
+      setStatus('working',`${tx('challenge_step')} ${i+1}/${total}`,instruction);speak(instruction);
+      // Short unpredictable pause after the prompt makes a fixed replay less useful.
+      await sleep(450+Math.floor(Math.random()*450));
+      const frames=await captureFrames(action==='blink'?16:14,action==='blink'?105:115);
+      const d=await postJSON(`/api/kiosk/${sid}/liveness/step`,{challenge_id:challengeId,action,frames});
+      passed=!!d.passed;lastMessage=d.message||'';nextAction=d.next_action||null;
+      if(!passed){setStatus('warn',tx('retry_step'),tx('liveness_retry'));speak(tx('liveness_retry'));await sleep(650);}
+    }
+    if(!passed)throw new Error(lastMessage||tx('liveness_failed'));
+    document.querySelectorAll('#challengeProgress i').forEach((x,j)=>{if(j<=i)x.className='done';});
+    setStatus('success',tx('passed_step'),`${tx(action)} ✓`);await sleep(300);
+    action=nextAction;
+  }
+  setStatus('success',tx('challenge_passed'),tx('keep_centered'));speak(tx('keep_centered'));
+  await sleep(1100);hideChallenge();
+  return challengeId;
+}
+async function verifyIdentityWithRetry(livenessToken){
+  for(let attempt=0;attempt<2;attempt++){
+    setStatus('working',tx('verifying_identity'),tx('keep_centered'));
+    if(attempt>0){speak(tx('keep_centered'));await sleep(1000);}else{await sleep(650);}
+    const frames=await captureFrames(10,160);
+    const r=await fetch(`/api/kiosk/${sid}/verify`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({frames,liveness_token:livenessToken})});
+    let d={};try{d=await r.json();}catch(e){}
+    if(d.ok)return d;
+    if(d.already||d.session_closed)return d;
+    if(d.retry_identity && attempt===0){
+      setStatus('warn',tx('retry_step'),tx('keep_centered'));
+      await sleep(900);
+      continue;
+    }
+    return d;
+  }
+  return {ok:false,message:tx('verification_failed')};
+}
+async function verifyFace(){
+  if(busy)return;busy=true;btn.disabled=true;
+  try{
+    const livenessToken=await runLiveness();
+    const d=await verifyIdentityWithRetry(livenessToken);
+    if(d.ok){setStatus('success',`${tx('welcome')}, ${d.student.name}`,`${d.student.student_id} • ${tx('attendance_marked')}`);speak(`${tx('welcome')} ${d.student.name}. ${tx('attendance_marked')}`);await refreshStatus();await sleep(2400);setStatus('ready',tx('ready_next'),tx('next_student'));}
+    else if(d.already){setStatus('warn',tx('already_marked'),d.message);await sleep(2200);setStatus('ready',tx('ready_next'),tx('next_student'));}
+    else if(d.session_closed){setStatus('bad',tx('attendance_closed'),d.message);btn.disabled=true;return;}
+    else{setStatus('bad',tx('verification_failed'),d.message||tx('keep_centered'));await sleep(2200);setStatus('ready',tx('try_again'),tx('look_press'));}
+  }catch(e){hideChallenge();setStatus('bad',tx('liveness_failed'),e.message);await sleep(1800);setStatus('ready',tx('try_again'),tx('look_press'));}
+  finally{if(!document.getElementById('statusText').textContent.toLowerCase().includes('closed'))btn.disabled=false;busy=false;}
+}
+async function refreshStatus(){try{const r=await fetch(`/api/kiosk/${sid}/status`);const d=await r.json();if(!d.active){setStatus('bad',tx('attendance_closed'),'Teacher has ended the attendance session.');btn.disabled=true;return;}document.getElementById('presentCount').textContent=d.present;const list=document.getElementById('recentList');list.innerHTML=d.records.length?d.records.map(x=>`<div class="recent-item"><b>${escapeHtml(x.name)}</b><span>${escapeHtml(x.student_id)}</span></div>`).join(''):`<div class="muted">${escapeHtml(tx('no_attendance'))}</div>`;}catch(e){}}
+function escapeHtml(x){return String(x??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+window.addEventListener('attendease:language',()=>{if(!busy)setStatus('ready',tx('ready_next'),tx('look_press'));});
+startCamera();setInterval(refreshStatus,5000);
+</script>
+</body></html>

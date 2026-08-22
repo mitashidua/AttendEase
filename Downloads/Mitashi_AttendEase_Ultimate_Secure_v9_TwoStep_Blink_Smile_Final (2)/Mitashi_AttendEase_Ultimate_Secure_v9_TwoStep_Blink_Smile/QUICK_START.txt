@@ -1,0 +1,7 @@
+AttendEase Secure v9 — Quick Start
+
+1. Extract this folder.
+2. Double-click setup_windows.bat on the first run.
+3. Open http://127.0.0.1:5055
+4. Connect the same Firebase Realtime Database and service-account JSON.
+5. Start attendance and complete 4 random liveness prompts: 2 blink + 2 smile.
