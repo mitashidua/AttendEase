@@ -1,0 +1,21 @@
+{% extends 'base.html' %}{% block title %}Teacher Login • AttendEase{% endblock %}
+{% block content %}
+<div class="auth-shell">
+  <section class="auth-copy">
+    <span class="eyebrow" data-i18n="login_eyebrow">SECURE • MULTILINGUAL • CLOUD-BACKED</span>
+    <h1 data-i18n="login_title">Any classroom device can become a secure attendance kiosk.</h1>
+    <p data-i18n="login_desc">One-time face enrollment, randomized challenge-response liveness, Firebase-backed classes, and a multilingual interface with light/dark themes.</p>
+    <div class="feature-grid"><div data-i18n="random_liveness">Random 2-step liveness</div><div data-i18n="interface_languages">8 interface languages</div><div data-i18n="one_time_face">One-time face enrollment</div><div data-i18n="firebase_attendance">Firebase attendance</div></div>
+  </section>
+  <section class="card auth-card">
+    <h2 data-i18n="teacher_sign_in">Teacher sign in</h2><p class="muted" data-i18n="account_loaded">Your account and classes are loaded from Firebase.</p>
+    <form method="post" class="form-stack">
+      <label><span data-i18n="email">Email</span><input type="email" name="email" required placeholder="teacher@example.com"></label>
+      <label><span data-i18n="password">Password</span><input type="password" name="password" required placeholder="••••••••"></label>
+      <button class="btn primary" type="submit" data-i18n="sign_in">Sign in</button>
+    </form>
+    <p class="tiny"><span data-i18n="demo_teacher">Demo teacher is created on first setup.</span> <b>teacher@attendease.local</b> / <b>Teacher@123</b></p>
+    <a class="btn ghost fullbtn" href="{{ url_for('teacher_register') }}" data-i18n="create_teacher">Create another teacher account</a>
+  </section>
+</div>
+{% endblock %}
